@@ -151,7 +151,16 @@ Review the detected subjects and select the subjects to track.
   <img src="screenshots/subject-selection.png" alt="Subject Selection" width="850"/>
 </p>
 
-### Step 4 — Track Attendance
+### Step 4 — View Subject page
+
+Selected subjects are added to the semester and can be managed from the Subjects page.
+
+<p align="center">
+  <img src="screenshots/subject.png" alt="Subjects Page" width="850"/>
+</p>
+
+
+### Step 5 — Track Attendance
 
 Mark classes as Present, Absent, Holiday, or Cancelled.
 
@@ -159,7 +168,7 @@ Mark classes as Present, Absent, Holiday, or Cancelled.
   <img src="screenshots/attendance-mark.png" alt="Attendance Marking" width="850"/>
 </p>
 
-### Step 5 — Monitor Attendance
+### Step 6 — Monitor Attendance
 
 View overall and subject-wise attendance from the dashboard.
 
@@ -185,9 +194,7 @@ View overall and subject-wise attendance from the dashboard.
 # 🚀 Coming Soon
 
 * 📚 **PYQ Resources** — UI available; functionality under development.
-* 🎯 **Classes Required for 75%**
 * 🎯 **Short-Term Attendance Goals**
-* 🔮 **Attendance Prediction**
 * 🔔 **Smart Attendance Notifications**
 
 ---
