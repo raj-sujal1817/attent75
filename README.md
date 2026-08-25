@@ -12,6 +12,21 @@ Attent75 is a smart attendance management system that uses a student's **semeste
 
 ---
 
+## 🔐 Demo Access
+
+Use the demo account below to explore Attent75 without creating an account.
+
+| | Demo Credentials |
+
+| **Email** | `jack3223@gmail.com` |
+| **Password** | `jack3223` |
+
+🚀 **[Open Attent75](https://attent75.onrender.com)**
+
+> 💡 The demo account contains sample semester, subject and attendance data so judges can immediately explore the application's main features.
+
+---
+
 ## 🚨 The Problem
 
 Most basic attendance systems simply calculate:
@@ -88,9 +103,6 @@ Attent75 uses **Gemini AI** to analyze an uploaded college routine and convert i
 📅 Attent75 Schedule
 ```
 
-<p align="center">
-  <img src="screenshots/ai-analysis.png" alt="AI Routine Analysis" width="850"/>
-</p>
 
 ---
 
@@ -130,9 +142,6 @@ Upload the existing college routine instead of manually entering every class.
 
 Gemini analyzes the routine and extracts the relevant subjects and schedule.
 
-<p align="center">
-  <img src="screenshots/ai-analysis.png" alt="AI Analysis" width="850"/>
-</p>
 
 ### Step 3 — Select Subjects
 
@@ -263,7 +272,7 @@ Dashboard
 
 # 🌐 Live Demo
 
-🚀 **[Try Attent75](YOUR_RENDER_URL)**
+🚀 **[Try Attent75](https://attent75.onrender.com)**
 
 ---
 
@@ -272,7 +281,7 @@ Dashboard
 ### Clone the repository
 
 ```bash
-git clone YOUR_GITHUB_REPOSITORY_URL
+git clone https://github.com/raj-sujal1817/attent75
 cd Attent75
 ```
 
