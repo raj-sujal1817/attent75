@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <%- include('../partials/head', { title: 'Import Routine' }) %>
+</head>
+
+<body>
+
+  <%- include('../partials/navbar', {
+    page: 'subjects',
+    user: typeof user !== 'undefined' ? user : {}
+  }) %>
+
+  <main class="container py-4">
+
+    <div class="mb-4">
+      <h2 class="fw-bold">Import Class Routine</h2>
+      <p class="text-muted">
+        Upload your college timetable and let AI extract your subjects and class schedule.
+      </p>
+    </div>
+
+    <div class="card shadow-sm p-4">
+
+      <form
+        id="importRoutineForm"
+        action="/subjects/import-routine"
+        method="POST"
+        enctype="multipart/form-data"
+      >
+
+        <div class="mb-4">
+          <label for="routineFile" class="form-label fw-semibold">
+            Upload Routine
+          </label>
+
+          <input
+            type="file"
+            class="form-control"
+            id="routineFile"
+            name="routineFile"
+            accept=".pdf,.jpg,.jpeg,.png"
+            required
+          >
+
+          <div class="form-text">
+            Supported formats: PDF, JPG, JPEG and PNG.
+          </div>
+
+          <div id="fileSizeWarning" class="alert alert-warning rounded-3 mt-3 mb-0 py-2 px-3" style="display:none;font-size:0.9rem;">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            <span id="fileSizeWarningText"></span>
+          </div>
+        </div>
+
+        <button type="submit" id="importRoutineSubmitBtn" class="btn btn-primary">
+          <i class="bi bi-stars me-2"></i>
+          Extract Routine with AI
+        </button>
+
+        <a href="/subjects" class="btn btn-outline-secondary ms-2">
+          Cancel
+        </a>
+
+      </form>
+
+      <div id="importRoutineLoading" class="mt-4 text-center" style="display:none;">
+        <div class="spinner-border text-primary mb-3" role="status" style="width:2.5rem;height:2.5rem;">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="text-muted mb-0 fw-semibold">Reading your timetable with AI...</p>
+        <p class="text-muted small">This usually takes 15-30 seconds, please don't close this page.</p>
+      </div>
+
+    </div>
+
+  </main>
+
+  <%- include('../partials/footer') %>
+
+  <script>
+    (function () {
+      var SOFT_WARN_MB = 2;
+      var HARD_LIMIT_MB = 10;
+
+      var fileInput = document.getElementById('routineFile');
+      var warningBox = document.getElementById('fileSizeWarning');
+      var warningText = document.getElementById('fileSizeWarningText');
+      var submitBtn = document.getElementById('importRoutineSubmitBtn');
+
+      fileInput.addEventListener('change', function () {
+        var file = fileInput.files[0];
+        if (!file) {
+          warningBox.style.display = 'none';
+          return;
+        }
+
+        var sizeMB = file.size / (1024 * 1024);
+
+        if (sizeMB > HARD_LIMIT_MB) {
+          warningText.textContent =
+            'This file is ' + sizeMB.toFixed(1) + 'MB, which is over the 10MB limit. ' +
+            'Please compress it (ideally under 2MB) before uploading.';
+          warningBox.className = 'alert alert-danger rounded-3 mt-3 mb-0 py-2 px-3';
+          warningBox.style.display = 'block';
+          submitBtn.disabled = true;
+
+        } else if (sizeMB > SOFT_WARN_MB) {
+          warningText.textContent =
+            'This file is ' + sizeMB.toFixed(1) + 'MB. Larger files take longer to process — ' +
+            'for the fastest results, compress it to under 2MB (most PDF scanner apps have a ' +
+            '"compress" option, or use a free online PDF compressor).';
+          warningBox.className = 'alert alert-warning rounded-3 mt-3 mb-0 py-2 px-3';
+          warningBox.style.display = 'block';
+          submitBtn.disabled = false;
+
+        } else {
+          warningBox.style.display = 'none';
+          submitBtn.disabled = false;
+        }
+      });
+    })();
+
+    document.getElementById('importRoutineForm').addEventListener('submit', function () {
+      // Let the form submit normally (classic full-page POST, same as before) —
+      // this just shows a visible "working on it" state instead of the page
+      // looking frozen while Gemini processes the file.
+      document.getElementById('importRoutineSubmitBtn').disabled = true;
+      document.getElementById('importRoutineLoading').style.display = 'block';
+    });
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

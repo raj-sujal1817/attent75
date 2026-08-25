@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><%- include('../partials/head', { title: 'Mark Attendance' }) %></head>
+<body>
+
+<%- include('../partials/navbar', { page: 'attendance', user: typeof user !== 'undefined' ? user : { username: 'Rahul' } }) %>
+
+<main class="container-fluid px-4 py-4" style="max-width:800px;">
+
+  <div class="mb-4">
+    <h2 class="fw-bold mb-1" style="font-family:'Poppins',sans-serif;color:#1a3a5c;">
+      <i class="bi bi-calendar-check me-2 text-primary"></i>Mark Today's Attendance
+    </h2>
+    <p class="text-muted mb-0">
+      <i class="bi bi-calendar3 me-1"></i>
+      <%= new Date().toLocaleDateString('en-IN', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) %>
+    </p>
+  </div>
+
+  <% if (typeof success !== 'undefined' && success) { %>
+    <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <i class="bi bi-check-circle-fill me-2"></i>
+      <%= success %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <i class="bi bi-exclamation-circle-fill me-2"></i>
+      <%= error %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+
+  <%
+    const todayClasses = typeof classes !== 'undefined' ? classes : [
+      { _id: '1', name: 'Mathematics',      time: '10:00 AM', room: 'Room 201' },
+      { _id: '2', name: 'Physics',          time: '2:00 PM',  room: 'Lab 3'   },
+      { _id: '3', name: 'Data Structures',  time: '4:00 PM',  room: 'Room 105' },
+    ];
+  %>
+
+  <% if (todayClasses && todayClasses.length > 0) { %>
+
+    <div class="row g-4">
+      <% todayClasses.forEach(function(cls, idx) { %>
+        <% const cardKey = cls.subjectId + '_' + cls.startTime; %>
+        <div class="col-md-6 col-lg-4">
+          <div class="card attendance-card h-100 p-4 position-relative"
+               id="card-<%= cardKey.replace(/[^a-zA-Z0-9_]/g, '') %>"
+               data-subject-id="<%= cls.subjectId %>"
+               data-start-time="<%= cls.startTime %>">
+            <div class="position-absolute top-0 start-0 w-100 h-3 rounded-top-4" style="background:linear-gradient(90deg,#2563eb,#60a5fa);"></div>
+            <div class="text-center mb-4">
+              <div class="d-inline-flex align-items-center justify-content-center rounded-3 mb-2" style="width:48px;height:48px;background:#dbeafe;color:#2563eb;font-size:20px;">
+                <i class="bi bi-journal-text"></i>
+              </div>
+              <h5 class="fw-bold mb-1" style="color:#1a3a5c;"><%= cls.name %></h5>
+              <small class="text-muted"><i class="bi bi-clock me-1"></i><%= formateTime(cls.startTime) %></small><br>
+              <small class="text-muted"><i class="bi bi-geo-alt me-1"></i><%= cls.room %></small>
+            </div>
+
+            <form action="/attendance/mark" method="POST" class="d-grid gap-2">
+              <input type="hidden" name="subjectId" value="<%= cls.subjectId %>">
+              <input type="hidden" name="startTime" value="<%= cls.startTime %>">
+              <input type="hidden" name="endTime" value="<%= cls.endTime %>">
+              <input type="hidden" name="subjectName" value="<%= cls.name %>">
+              
+
+              <button type="submit" name="status" value="present" class="present btn <%= cls.status === "present" ? "btn-success" : "btn-secondary" %> btn-md d-flex align-items-center justify-content-center gap-2" style="padding:12px;">
+                <i class="bi bi-check-circle"></i> Mark Present
+              </button>
+              
+              <button type="submit" name="status" value="absent" class="absent btn <%= cls.status === "absent" ? "btn-danger" : "btn-secondary" %> btn-md d-flex align-items-center justify-content-center gap-2" style="padding:12px;">
+                <i class="bi bi-x-circle"></i> Mark Absent
+              </button>
+
+              <button type="submit" name="status" value="holiday" class="holiday btn <%= cls.status === "holiday" ? "btn-primary" : "btn-secondary" %> btn-md d-flex align-items-center justify-content-center gap-2" style="padding:12px;">
+                <i class="bi bi-check-circle"></i> Holiday
+              </button>
+              
+              <button type="submit" name="status" value="cancel" class="cancel btn <%= cls.status === "cancel" ? "btn-warning" : "btn-secondary" %> btn-md d-flex align-items-center justify-content-center gap-2" style="padding:12px;">
+                <i class="bi bi-x-circle"></i> Class Cancel
+              </button>
+            </form>
+
+            <div class="text-center mt-3">
+              <small class="text-muted">
+                <i class="bi bi-info-circle me-1"></i>Change your answer anytime today
+              </small>
+            </div>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+
+    <div class="mt-4 text-center">
+      <a href="/dashboard" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+      </a>
+    </div>
+
+  <% } else { %>
+
+    <div class="card p-5 text-center">
+      <div style="font-size:3.5rem;opacity:0.3;margin-bottom:1rem;"><i class="bi bi-calendar-x"></i></div>
+      <h5 class="text-muted fw-semibold">No classes scheduled today</h5>
+      <p class="text-muted small mb-3">Great day for catching up on studies!</p>
+      <a href="/dashboard" class="btn btn-primary">
+        <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+      </a>
+    </div>
+
+  <% } %>
+
+</main>
+
+<%- include('../partials/footer') %>
+
+
+<script>
+(function () {
+
+  // Bootstrap's official button colour for each status, and the
+  // "not selected" colour it falls back to. Mirrors the same mapping
+  // the server-rendered EJS uses on the initial page load.
+  var STATUS_TO_CLASS = {
+    present: 'btn-success',
+    absent:  'btn-danger',
+    holiday: 'btn-primary',
+    cancel:  'btn-warning'
+  };
+  var ALL_BTN_COLOR_CLASSES = ['btn-success', 'btn-danger', 'btn-primary', 'btn-warning', 'btn-secondary'];
+
+  function updateAllCards(classes) {
+    classes.forEach(function (cls) {
+      var card = document.querySelector(
+        '.attendance-card[data-subject-id="' + cls.subjectId + '"][data-start-time="' + cls.startTime + '"]'
+      );
+      if (!card) return;
+
+      Object.keys(STATUS_TO_CLASS).forEach(function (statusName) {
+        var btn = card.querySelector('.' + statusName);
+        if (!btn) return;
+
+        btn.classList.remove.apply(btn.classList, ALL_BTN_COLOR_CLASSES);
+        btn.classList.add(cls.status === statusName ? STATUS_TO_CLASS[statusName] : 'btn-secondary');
+      });
+    });
+  }
+
+  function showAttendanceError(message) {
+    var alertBox = document.getElementById('ajax-error-alert');
+    if (!alertBox) {
+      alertBox = document.createElement('div');
+      alertBox.id = 'ajax-error-alert';
+      alertBox.className = 'alert alert-danger alert-dismissible fade show rounded-3 mb-4';
+      alertBox.setAttribute('role', 'alert');
+      alertBox.innerHTML =
+        '<i class="bi bi-exclamation-circle-fill me-2"></i>' +
+        '<span id="ajax-error-text"></span>' +
+        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+      document.querySelector('main').prepend(alertBox);
+    }
+    document.getElementById('ajax-error-text').textContent = message;
+  }
+
+  document.querySelectorAll('.attendance-card form').forEach(function (form) {
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      var submitter = e.submitter;
+      if (!submitter) return;
+
+      var formData = new FormData(form);
+      formData.set('status', submitter.value);
+
+      var buttons = form.querySelectorAll('button[type="submit"]');
+      buttons.forEach(function (b) { b.disabled = true; });
+
+      fetch(form.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: new URLSearchParams(formData)
+      })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        })
+        .then(function (result) {
+          buttons.forEach(function (b) { b.disabled = false; });
+
+          if (!result.ok || !result.data.success) {
+            showAttendanceError(
+              (result.data && result.data.message) || 'Something went wrong. Please try again.'
+            );
+            return;
+          }
+
+          updateAllCards(result.data.classes);
+        })
+        .catch(function () {
+          buttons.forEach(function (b) { b.disabled = false; });
+          showAttendanceError('Network error. Please check your connection and try again.');
+        });
+    });
+  });
+
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
