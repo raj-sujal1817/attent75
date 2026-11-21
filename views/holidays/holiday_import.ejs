@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><%- include('../partials/head', { title: 'Import Holiday Notice' }) %></head>
+<body>
+
+<%- include('../partials/navbar', { page: 'holidays', user: typeof user !== 'undefined' ? user : { username: 'Rahul' } }) %>
+
+<main class="container py-4" style="max-width:720px;">
+
+  <div class="mb-4">
+    <a href="/holidays" class="text-decoration-none text-muted small d-flex align-items-center gap-1 mb-3">
+      <i class="bi bi-arrow-left"></i> Back to Holidays
+    </a>
+    <h2 class="fw-bold mb-1" style="font-family:'Poppins',sans-serif;color:#1a3a5c;">Import Holiday Notice</h2>
+    <p class="text-muted mb-0">
+      Upload your college holiday notice and let AI extract the holiday dates for you.
+    </p>
+  </div>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <i class="bi bi-exclamation-circle-fill me-2"></i>
+      <%= error %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+
+  <%- include('../partials/ai_quota') %>
+
+  <div class="card shadow-sm p-4">
+
+    <form
+      id="importHolidayForm"
+      action="/holidays/import"
+      method="POST"
+      enctype="multipart/form-data"
+    >
+
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+      <div class="mb-4">
+        <label for="holidayFile" class="form-label fw-semibold">
+          <i class="bi bi-file-earmark-arrow-up me-1 text-primary"></i> Upload Holiday Notice
+        </label>
+
+        <input
+          type="file"
+          class="form-control"
+          id="holidayFile"
+          name="holidayFile"
+          accept=".pdf,.jpg,.jpeg,.png"
+          required
+        >
+
+        <div class="form-text">
+          Supported formats: PDF, JPG, JPEG and PNG. Maximum size: 10MB.
+        </div>
+
+        <div id="fileWarning" class="alert alert-warning rounded-3 mt-3 mb-0 py-2 px-3" style="display:none;font-size:0.9rem;">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i>
+          <span id="fileWarningText"></span>
+        </div>
+      </div>
+
+      <!-- Tip -->
+      <div class="rounded-3 p-3 mb-4 d-flex gap-3 align-items-start" style="background:#f0f6ff;border:1.5px solid #bfdbfe;">
+        <i class="bi bi-lightbulb text-primary flex-shrink-0 mt-1"></i>
+        <div style="font-size:.85rem;color:#1e40af;">
+          <strong>Tip:</strong> A clear, straight photo or the original PDF works best.
+          You will be able to review and fix every date before anything is saved.
+        </div>
+      </div>
+
+      <button type="submit" id="importHolidaySubmitBtn" class="btn btn-primary">
+        <i class="bi bi-stars me-2"></i>
+        Extract Holidays with AI
+      </button>
+
+      <a href="/holidays" class="btn btn-outline-secondary ms-2">
+        Cancel
+      </a>
+
+    </form>
+
+    <div id="importHolidayLoading" class="mt-4 text-center" style="display:none;">
+      <div class="spinner-border text-primary mb-3" role="status" style="width:2.5rem;height:2.5rem;">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="text-muted mb-0 fw-semibold">Reading your holiday notice with AI...</p>
+      <p class="text-muted small">This usually takes 15-30 seconds, please don't close this page.</p>
+    </div>
+
+  </div>
+
+</main>
+
+<%- include('../partials/footer') %>
+
+<script>
+(function () {
+
+  // Same limits as the routine import.
+  // If you change HARD_LIMIT_MB, change the multer fileSize limit in app.js too.
+  var SOFT_WARN_MB = 2;
+  var HARD_LIMIT_MB = 10;
+  var ALLOWED_EXT = ['pdf', 'jpg', 'jpeg', 'png'];
+
+  var form        = document.getElementById('importHolidayForm');
+  var fileInput   = document.getElementById('holidayFile');
+  var warningBox  = document.getElementById('fileWarning');
+  var warningText = document.getElementById('fileWarningText');
+  var submitBtn   = document.getElementById('importHolidaySubmitBtn');
+
+  function showWarning(kind, message) {
+    warningText.textContent = message;
+    warningBox.className =
+      'alert alert-' + kind + ' rounded-3 mt-3 mb-0 py-2 px-3';
+    warningBox.style.display = 'block';
+  }
+
+  function hideWarning() {
+    warningBox.style.display = 'none';
+  }
+
+  fileInput.addEventListener('change', function () {
+    var file = fileInput.files[0];
+
+    if (!file) {
+      hideWarning();
+      submitBtn.disabled = false;
+      return;
+    }
+
+    // 1. File type
+    var ext = (file.name.split('.').pop() || '').toLowerCase();
+
+    if (ALLOWED_EXT.indexOf(ext) === -1) {
+      showWarning(
+        'danger',
+        'Unsupported file type ".' + ext + '". Please upload a PDF, JPG, JPEG or PNG file.'
+      );
+      submitBtn.disabled = true;
+      return;
+    }
+
+    // 2. File size
+    var sizeMB = file.size / (1024 * 1024);
+
+    if (sizeMB > HARD_LIMIT_MB) {
+      showWarning(
+        'danger',
+        'This file is ' + sizeMB.toFixed(1) + 'MB, which is over the ' + HARD_LIMIT_MB + 'MB limit. ' +
+        'Please compress it (ideally under ' + SOFT_WARN_MB + 'MB) before uploading.'
+      );
+      submitBtn.disabled = true;
+
+    } else if (sizeMB > SOFT_WARN_MB) {
+      showWarning(
+        'warning',
+        'This file is ' + sizeMB.toFixed(1) + 'MB. Larger files take longer to process — ' +
+        'for the fastest results, compress it to under ' + SOFT_WARN_MB + 'MB (most PDF scanner apps have a ' +
+        '"compress" option, or use a free online PDF compressor).'
+      );
+      submitBtn.disabled = false;
+
+    } else {
+      hideWarning();
+      submitBtn.disabled = false;
+    }
+  });
+
+  form.addEventListener('submit', function (e) {
+    // Safety net in case the button was re-enabled some other way.
+    if (submitBtn.disabled) {
+      e.preventDefault();
+      return;
+    }
+
+    // Normal full-page POST, this only shows a visible "working on it" state.
+    submitBtn.disabled = true;
+    document.getElementById('importHolidayLoading').style.display = 'block';
+  });
+
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

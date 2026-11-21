@@ -41,6 +41,28 @@
     ];
   %>
 
+  <%
+    // A class that a holiday NOTICE turned into Holiday carries holidayName
+    const noticeHoliday = (todayClasses || []).find(function (c) { return c.holidayName; });
+  %>
+
+  <% if (noticeHoliday) { %>
+    <div class="d-flex align-items-start gap-3 rounded-3 p-3 mb-4"
+         style="background:#eff6ff;border:1.5px solid #bfdbfe;color:#1e40af;">
+      <div class="d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+           style="width:44px;height:44px;background:#dbeafe;font-size:20px;">
+        <i class="bi bi-calendar-heart"></i>
+      </div>
+      <div>
+        <div class="fw-bold">Today is a holiday: <%= noticeHoliday.holidayName %></div>
+        <div class="small">
+          This comes from a holiday notice, so today's attendance is locked.
+          To change it, remove the notice from the <a href="/holidays" class="fw-semibold">Holidays</a> page.
+        </div>
+      </div>
+    </div>
+  <% } %>
+
   <% if (todayClasses && todayClasses.length > 0) { %>
 
     <div class="row g-4">
@@ -62,6 +84,9 @@
             </div>
 
             <form action="/attendance/mark" method="POST" class="d-grid gap-2">
+
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
               <input type="hidden" name="subjectId" value="<%= cls.subjectId %>">
               <input type="hidden" name="startTime" value="<%= cls.startTime %>">
               <input type="hidden" name="endTime" value="<%= cls.endTime %>">

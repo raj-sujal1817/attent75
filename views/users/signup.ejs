@@ -18,7 +18,7 @@
     <!-- Card -->
     <div class="auth-card bg-white">
       <h2 class="fw-bold mb-1" style="font-family:'Poppins',sans-serif;font-size:1.5rem;color:#1a3a5c;">Create your account</h2>
-      <p class="text-muted mb-4 small">Get started — it only takes a minute</p>
+      <p class="text-muted mb-4 small">Get started — we will email you a code to verify your address</p>
 
       <% if (typeof error !== 'undefined' && error) { %>
         <div class="alert alert-danger d-flex align-items-center gap-2 rounded-3 py-2 mb-4">
@@ -28,6 +28,7 @@
       <% } %>
 
       <form action="/signup" method="POST" novalidate>
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="mb-3">
           <label class="form-label" for="username">
             <i class="bi bi-person me-1 text-primary"></i> Username
@@ -68,18 +69,18 @@
               name="password"
               id="password"
               class="form-control form-control-lg"
-              placeholder="Minimum 6 characters"
+              placeholder="Minimum 8 characters"
               required
             >
             <button class="btn btn-outline-secondary border rounded-end-3" type="button" onclick="togglePwd('password', this)" tabindex="-1" style="border-left:0!important;border-color:#e2e8f0!important;">
               <i class="bi bi-eye"></i>
             </button>
           </div>
-          <div class="form-text text-muted mt-1"><i class="bi bi-shield-check me-1"></i>Use at least 6 characters</div>
+          <div class="form-text text-muted mt-1"><i class="bi bi-shield-check me-1"></i>Use at least 8 characters</div>
         </div>
 
         <button type="submit" class="btn btn-primary w-100 btn-lg mb-3">
-          <i class="bi bi-person-plus me-2"></i>Create Account
+          <i class="bi bi-person-plus me-2"></i>Create Account &amp; Send Code
         </button>
       </form>
 

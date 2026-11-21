@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><%- include('../partials/head', { title: 'Holidays' }) %></head>
+<body>
+
+<%- include('../partials/navbar', { page: 'holidays', user: typeof user !== 'undefined' ? user : { username: 'Rahul' } }) %>
+
+<main class="container-fluid px-4 py-4" style="max-width:900px;">
+
+  <%
+    /*
+      Expected data from the route:
+
+      holidayNotices = [
+        {
+          _id:         "...",
+          title:       "BEU Holiday Notice 2026",
+          description: "...",                  // optional
+          isDefault:   true | false,           // the one notice you pre-add for everybody
+          isApplied:   true | false,           // for THIS user
+          createdAt:   <Date|ISO>,             // optional (shown for imported notices)
+          holidays: [ { date: <Date|ISO>, name: "Diwali" }, ... ]
+        }
+      ]
+    */
+
+    const notices = (typeof holidayNotices !== 'undefined' && holidayNotices) ? holidayNotices : [];
+
+    const IST = 'Asia/Kolkata';
+
+    // yyyy-MM-dd in IST, safe for plain string comparison
+    function dateKey(d) {
+      return new Date(d).toLocaleDateString('en-CA', { timeZone: IST });
+    }
+    function fmtDate(d) {
+      return new Date(d).toLocaleDateString('en-IN', { timeZone: IST, day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    function fmtWeekday(d) {
+      return new Date(d).toLocaleDateString('en-IN', { timeZone: IST, weekday: 'long' });
+    }
+    function fmtDayNum(d) {
+      return new Date(d).toLocaleDateString('en-IN', { timeZone: IST, day: '2-digit' });
+    }
+    function fmtMonth(d) {
+      return new Date(d).toLocaleDateString('en-IN', { timeZone: IST, month: 'short' });
+    }
+
+    const todayKey = dateKey(new Date());
+
+    function sortedHolidays(n) {
+      return (n.holidays || []).slice().sort(function (a, b) {
+        return new Date(a.date) - new Date(b.date);
+      });
+    }
+
+    const appliedCount    = notices.filter(function (n) { return n.isApplied; }).length;
+    const notAppliedCount = notices.length - appliedCount;
+    const upcomingCount   = notices
+      .filter(function (n) { return n.isApplied; })
+      .reduce(function (sum, n) {
+        return sum + (n.holidays || []).filter(function (h) { return dateKey(h.date) >= todayKey; }).length;
+      }, 0);
+  %>
+
+  <!-- ── Page header ─────────────────────────────────────────────── -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-4 gap-3">
+    <div>
+      <h2 class="fw-bold mb-1" style="font-family:'Poppins',sans-serif;color:#1a3a5c;">
+        <i class="bi bi-calendar-heart me-2 text-primary"></i>Holidays
+      </h2>
+      <p class="text-muted mb-0 small">
+        Import your holiday notices. Applied notices mark those dates as Holiday on your classes.
+      </p>
+    </div>
+    <a href="/holidays/import" class="btn btn-primary d-flex align-items-center gap-2">
+      <i class="bi bi-file-earmark-arrow-up"></i> Import Holiday Notice
+    </a>
+  </div>
+
+  <% if (typeof success !== 'undefined' && success) { %>
+    <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <i class="bi bi-check-circle-fill me-2"></i>
+      <%= success %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <i class="bi bi-exclamation-circle-fill me-2"></i>
+      <%= error %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+
+  <% if (notices.length > 0) { %>
+
+    <!-- ── Summary ───────────────────────────────────────────────── -->
+    <div class="row g-3 mb-4">
+      <div class="col-12 col-sm-4">
+        <div class="card stat-card p-3 h-100">
+          <div class="d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:#d1fae5;color:#059669;"><i class="bi bi-check2-circle"></i></div>
+            <div>
+              <div class="fw-bold fs-4 lh-1" style="color:#1a3a5c;"><%= appliedCount %></div>
+              <small class="text-muted">Applied notices</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-4">
+        <div class="card stat-card p-3 h-100">
+          <div class="d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:#f1f5f9;color:#64748b;"><i class="bi bi-dash-circle"></i></div>
+            <div>
+              <div class="fw-bold fs-4 lh-1" style="color:#1a3a5c;"><%= notAppliedCount %></div>
+              <small class="text-muted">Not applied</small>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-4">
+        <div class="card stat-card p-3 h-100">
+          <div class="d-flex align-items-center gap-3">
+            <div class="stat-icon" style="background:#fef3c7;color:#d97706;"><i class="bi bi-calendar-event"></i></div>
+            <div>
+              <div class="fw-bold fs-4 lh-1" style="color:#1a3a5c;"><%= upcomingCount %></div>
+              <small class="text-muted">Upcoming holidays</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Notices ───────────────────────────────────────────────── -->
+    <% notices.forEach(function (n, idx) {
+         const list       = sortedHolidays(n);
+         const total      = list.length;
+         const upcoming   = list.filter(function (h) { return dateKey(h.date) >= todayKey; });
+         const nextOne    = upcoming.length > 0 ? upcoming[0] : null;
+         const collapseId = 'holidayList-' + idx;
+    %>
+
+      <div class="card mb-4">
+        <div class="p-4">
+
+          <!-- Title + actions -->
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+
+            <div class="d-flex gap-3">
+              <div class="d-inline-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                   style="width:48px;height:48px;background:#dbeafe;color:#2563eb;font-size:20px;">
+                <i class="bi <%= n.isDefault ? 'bi-stars' : 'bi-file-earmark-text' %>"></i>
+              </div>
+
+              <div>
+                <h5 class="fw-bold mb-1" style="color:#1a3a5c;"><%= n.title %></h5>
+
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <% if (n.isApplied) { %>
+                    <span class="badge rounded-pill" style="background:#d1fae5;color:#065f46;font-weight:600;">
+                      <i class="bi bi-check-circle-fill me-1"></i>Applied
+                    </span>
+                  <% } else { %>
+                    <span class="badge rounded-pill" style="background:#f1f5f9;color:#475569;font-weight:600;">
+                      <i class="bi bi-dash-circle me-1"></i>Not applied
+                    </span>
+                  <% } %>
+
+                  <% if (n.isDefault) { %>
+                    <span class="badge rounded-pill" style="background:#ede9fe;color:#5b21b6;font-weight:600;">
+                      <i class="bi bi-stars me-1"></i>Pre-applied by Attent75
+                    </span>
+                  <% } else { %>
+                    <small class="text-muted">
+                      Imported by you<%= n.createdAt ? ' · ' + fmtDate(n.createdAt) : '' %>
+                    </small>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2 notice-action flex-shrink-0">
+
+              <form action="/holidays/<%= n._id %>/<%= n.isApplied ? 'remove' : 'apply' %>"
+                    method="POST"
+                    class="notice-form flex-grow-1"
+                    data-action="<%= n.isApplied ? 'remove' : 'apply' %>"
+                    data-title="<%= n.title %>">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+                <% if (n.isApplied) { %>
+                  <button type="submit" class="btn btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-2"
+                          style="border-radius:10px;font-weight:600;padding:10px 22px;">
+                    <i class="bi bi-x-circle"></i> <span class="btn-label">Remove</span>
+                  </button>
+                <% } else { %>
+                  <button type="submit" class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2">
+                    <i class="bi bi-check2-circle"></i> <span class="btn-label">Apply</span>
+                  </button>
+                <% } %>
+              </form>
+
+              <% if (!n.isDefault) { %>
+                <form action="/holidays/<%= n._id %>/delete"
+                      method="POST"
+                      class="notice-form"
+                      data-action="delete"
+                      data-title="<%= n.title %>">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button type="submit" class="btn btn-danger d-flex align-items-center justify-content-center"
+                          style="border-radius:10px;padding:10px 14px;" title="Delete this notice" aria-label="Delete this notice">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              <% } %>
+
+            </div>
+
+          </div>
+
+          <% if (n.description) { %>
+            <p class="text-muted small mt-3 mb-0"><%= n.description %></p>
+          <% } %>
+
+          <!-- Quick facts -->
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            <span class="badge rounded-pill" style="background:#dbeafe;color:#1e40af;font-weight:600;">
+              <i class="bi bi-calendar3 me-1"></i><%= total %> holiday<%= total === 1 ? '' : 's' %>
+            </span>
+
+            <% if (total > 0) { %>
+              <span class="badge rounded-pill" style="background:#f1f5f9;color:#475569;font-weight:600;">
+                <i class="bi bi-arrow-left-right me-1"></i><%= fmtDate(list[0].date) %> – <%= fmtDate(list[total - 1].date) %>
+              </span>
+            <% } %>
+
+            <% if (nextOne) { %>
+              <span class="badge rounded-pill" style="background:#fef3c7;color:#92400e;font-weight:600;">
+                <i class="bi bi-alarm me-1"></i>Next: <%= nextOne.name %> · <%= fmtDate(nextOne.date) %>
+              </span>
+            <% } %>
+          </div>
+
+          <!-- Toggle list -->
+          <% if (total > 0) { %>
+            <button class="btn btn-link p-0 mt-3 text-decoration-none fw-semibold small"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#<%= collapseId %>"
+                    aria-expanded="false"
+                    aria-controls="<%= collapseId %>">
+              <i class="bi bi-list-ul me-1"></i>View all holidays
+              <i class="bi bi-chevron-down ms-1"></i>
+            </button>
+
+            <div class="collapse" id="<%= collapseId %>">
+              <div class="d-flex flex-column gap-2 mt-3">
+                <% list.forEach(function (h) {
+                     const k       = dateKey(h.date);
+                     const isPast  = k < todayKey;
+                     const isToday = k === todayKey;
+                %>
+                  <div class="d-flex align-items-center gap-3 p-2 rounded-3"
+                       style="background:#f8faff;border:1px solid #e0eaff;<%= isPast ? 'opacity:.6;' : '' %>">
+
+                    <div class="text-center flex-shrink-0 rounded-3"
+                         style="width:52px;padding:6px 0;background:<%= isPast ? '#f1f5f9' : '#fef3c7' %>;color:<%= isPast ? '#64748b' : '#92400e' %>;">
+                      <div class="fw-bold lh-1" style="font-size:1.1rem;"><%= fmtDayNum(h.date) %></div>
+                      <div class="text-uppercase" style="font-size:.65rem;font-weight:600;letter-spacing:.05em;"><%= fmtMonth(h.date) %></div>
+                    </div>
+
+                    <div class="flex-grow-1">
+                      <div class="fw-semibold" style="color:#1e293b;font-size:.92rem;"><%= h.name %></div>
+                      <small class="text-muted"><%= fmtWeekday(h.date) %></small>
+                    </div>
+
+                    <% if (isToday) { %>
+                      <span class="badge rounded-pill" style="background:#dbeafe;color:#1e40af;">Today</span>
+                    <% } else if (isPast) { %>
+                      <small class="text-muted">Past</small>
+                    <% } %>
+                  </div>
+                <% }); %>
+              </div>
+            </div>
+          <% } %>
+
+        </div>
+      </div>
+
+    <% }); %>
+
+    <!-- ── How it works ──────────────────────────────────────────── -->
+    <div class="p-3 rounded-3 mb-2" style="background:#f8faff;border:1px solid #e0eaff;">
+      <div class="text-muted mb-2" style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">
+        <i class="bi bi-info-circle me-1"></i>How it works
+      </div>
+      <ul class="small text-muted mb-0 ps-3">
+        <li>Use <strong>Import Holiday Notice</strong> to upload a notice. AI reads the dates and you review them before saving.</li>
+        <li>Applying a notice marks all your classes on those dates as <strong>Holiday</strong>.</li>
+        <li>Removing a notice puts those dates back to normal. You can apply it again anytime.</li>
+        <li>Deleting a notice you imported removes it completely.</li>
+      </ul>
+    </div>
+
+  <% } else { %>
+
+    <div class="card p-5 text-center">
+      <div style="font-size:3.5rem;opacity:0.3;margin-bottom:1rem;"><i class="bi bi-calendar-x"></i></div>
+      <h5 class="text-muted fw-semibold">No holiday notices yet</h5>
+      <p class="text-muted small mb-3">Upload your college holiday notice and AI will pick out the holiday dates for you.</p>
+      <a href="/holidays/import" class="btn btn-primary">
+        <i class="bi bi-file-earmark-arrow-up me-1"></i> Import Holiday Notice
+      </a>
+    </div>
+
+  <% } %>
+
+</main>
+
+<%- include('../partials/footer') %>
+
+<style>
+  @media (max-width: 575.98px) {
+    .notice-action { width: 100%; }
+  }
+</style>
+
+<script>
+(function () {
+
+  var CONFIRM_TEXT = {
+    remove: function (title) {
+      return 'Remove "' + title + '"?\n\nYour attendance for these holiday dates will go back to normal.';
+    },
+    delete: function (title) {
+      return 'Delete "' + title + '"?\n\nThe notice will be removed completely and its holiday marks will be cleared. This cannot be undone.';
+    }
+  };
+
+  var WORKING_TEXT = {
+    apply:  'Applying...',
+    remove: 'Removing...',
+    delete: 'Deleting...'
+  };
+
+  document.querySelectorAll('.notice-form').forEach(function (form) {
+
+    form.addEventListener('submit', function (e) {
+
+      var action = form.dataset.action;
+      var title  = form.dataset.title || 'this notice';
+
+      if (CONFIRM_TEXT[action] && !confirm(CONFIRM_TEXT[action](title))) {
+        e.preventDefault();
+        return;
+      }
+
+      // Applying / removing can touch many records, so show a working state
+      // and block double clicks.
+      var btn = form.querySelector('button[type="submit"]');
+      if (btn) {
+        btn.disabled = true;
+
+        var label = btn.querySelector('.btn-label');
+        if (label) label.textContent = WORKING_TEXT[action] || 'Working...';
+      }
+    });
+  });
+
+  // Coming back with the browser's Back button should not leave buttons stuck.
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) return;
+    window.location.reload();
+  });
+
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>

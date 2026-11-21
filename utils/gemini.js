@@ -1,4 +1,5 @@
 const { GoogleGenAI } = require("@google/genai");
+const { HOLIDAY_PROMPT } = require("./holidayParser");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY
@@ -121,8 +122,56 @@ Rules:
 }
 
 
+// Reads a holiday notice (PDF / image) and returns Gemini's raw JSON text.
+// Use parseHolidayResponse() (utils/holidayParser.js) to clean it.
+async function extractHolidays(filePath, mimeType) {
+
+  console.time("GEMINI HOLIDAY FILE UPLOAD");
+
+  const uploadedFile = await ai.files.upload({
+    file: filePath,
+    config: {
+      mimeType: mimeType
+    }
+  });
+
+  console.timeEnd("GEMINI HOLIDAY FILE UPLOAD");
+
+  console.time("GEMINI HOLIDAY ANALYSIS");
+
+  const interaction = await ai.interactions.create({
+    model: "gemini-3.6-flash",
+
+    // Reading a table into JSON does not need deep reasoning.
+    generation_config: {
+      thinking_level: "low"
+    },
+
+    input: [
+      {
+        type: "text",
+        text: HOLIDAY_PROMPT
+      },
+      {
+        // Same call shape as extractRoutine (a PDF is passed the same way).
+        type: "image",
+        uri: uploadedFile.uri,
+        mime_type: uploadedFile.mimeType
+      }
+    ],
+
+    store: false
+  });
+
+  console.timeEnd("GEMINI HOLIDAY ANALYSIS");
+
+  return interaction.output_text;
+}
+
+
 module.exports = {
   ai,
   testGemini,
-  extractRoutine
+  extractRoutine,
+  extractHolidays
 };

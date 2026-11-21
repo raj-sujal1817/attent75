@@ -37,6 +37,9 @@
     %>
 
     <form action="/subjects/<%= subject._id %>" method="POST" novalidate id="editSubjectForm">
+
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
       <input type="hidden" name="_method" value="PUT">
 
       <!-- Subject Name -->

@@ -1,0 +1,318 @@
+{
+  "title": "BEU Holiday Notice 2026",
+  "description": "Holiday list of Bihar Engineering University, Patna for 2026 (Memo no. 1029/2025, dated 18-12-2025). Muslim festival dates can change with moon sighting.",
+  "holidays": [
+    {
+      "date": "2026-01-01",
+      "name": "New Year"
+    },
+    {
+      "date": "2026-01-14",
+      "name": "Makar Sankranti"
+    },
+    {
+      "date": "2026-01-23",
+      "name": "Basant Panchami / Saraswati Puja"
+    },
+    {
+      "date": "2026-01-26",
+      "name": "Republic Day"
+    },
+    {
+      "date": "2026-02-01",
+      "name": "Sant Ravidas Jayanti"
+    },
+    {
+      "date": "2026-02-04",
+      "name": "Shab-e-Barat"
+    },
+    {
+      "date": "2026-02-15",
+      "name": "Mahashivratri"
+    },
+    {
+      "date": "2026-03-02",
+      "name": "Holika Dahan / Holi"
+    },
+    {
+      "date": "2026-03-03",
+      "name": "Holika Dahan / Holi"
+    },
+    {
+      "date": "2026-03-04",
+      "name": "Holika Dahan / Holi"
+    },
+    {
+      "date": "2026-03-21",
+      "name": "Id-ul-Fitr (Eid)"
+    },
+    {
+      "date": "2026-03-22",
+      "name": "Bihar Diwas"
+    },
+    {
+      "date": "2026-03-26",
+      "name": "Samrat Ashoka Jayanti"
+    },
+    {
+      "date": "2026-03-27",
+      "name": "Ram Navami"
+    },
+    {
+      "date": "2026-03-31",
+      "name": "Mahavir Jayanti"
+    },
+    {
+      "date": "2026-04-03",
+      "name": "Good Friday"
+    },
+    {
+      "date": "2026-04-14",
+      "name": "Dr. B. R. Ambedkar Jayanti"
+    },
+    {
+      "date": "2026-04-23",
+      "name": "Veer Kunwar Singh Jayanti"
+    },
+    {
+      "date": "2026-04-25",
+      "name": "Janaki Navami"
+    },
+    {
+      "date": "2026-05-01",
+      "name": "May Day / Shram Diwas / Buddha Purnima"
+    },
+    {
+      "date": "2026-05-28",
+      "name": "Id-ul-Zuha (Bakrid)"
+    },
+    {
+      "date": "2026-06-01",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-02",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-03",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-04",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-05",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-06",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-07",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-08",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-09",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-10",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-11",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-12",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-13",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-14",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-15",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-16",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-17",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-18",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-19",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-20",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-21",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-22",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-23",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-24",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-25",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-26",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-27",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-28",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-29",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-06-30",
+      "name": "Summer Vacation"
+    },
+    {
+      "date": "2026-08-04",
+      "name": "Chehlum"
+    },
+    {
+      "date": "2026-08-15",
+      "name": "Independence Day"
+    },
+    {
+      "date": "2026-08-26",
+      "name": "Prophet Muhammad's Birthday"
+    },
+    {
+      "date": "2026-08-28",
+      "name": "Raksha Bandhan"
+    },
+    {
+      "date": "2026-09-04",
+      "name": "Shri Krishna Janmashtami"
+    },
+    {
+      "date": "2026-10-02",
+      "name": "Mahatma Gandhi Jayanti"
+    },
+    {
+      "date": "2026-10-17",
+      "name": "Durga Puja"
+    },
+    {
+      "date": "2026-10-18",
+      "name": "Durga Puja"
+    },
+    {
+      "date": "2026-10-19",
+      "name": "Durga Puja"
+    },
+    {
+      "date": "2026-10-20",
+      "name": "Durga Puja"
+    },
+    {
+      "date": "2026-11-08",
+      "name": "Deepawali / Chitragupt Puja / Bhai Dooj / Chhath Puja"
+    },
+    {
+      "date": "2026-11-09",
+      "name": "Deepawali / Chitragupt Puja / Bhai Dooj / Chhath Puja"
+    },
+    {
+      "date": "2026-11-10",
+      "name": "Deepawali / Chitragupt Puja / Bhai Dooj / Chhath Puja"
+    },
+    {
+      "date": "2026-11-11",
+      "name": "Deepawali / Chitragupt Puja / Bhai Dooj / Chhath Puja"
+    },
+    {
+      "date": "2026-11-12",
+      "name": "Deepawali / Chitragupt Puja / Bhai Dooj / Chhath Puja"
+    },
+    {
+      "date": "2026-11-13",
+      "name": "Deepawali / Chitragupt Puja / Bhai Dooj / Chhath Puja"
+    },
+    {
+      "date": "2026-11-14",
+      "name": "Deepawali / Chitragupt Puja / Bhai Dooj / Chhath Puja"
+    },
+    {
+      "date": "2026-11-15",
+      "name": "Deepawali / Chitragupt Puja / Bhai Dooj / Chhath Puja"
+    },
+    {
+      "date": "2026-11-16",
+      "name": "Deepawali / Chitragupt Puja / Bhai Dooj / Chhath Puja"
+    },
+    {
+      "date": "2026-11-24",
+      "name": "Guru Nanak Jayanti / Kartik Purnima"
+    },
+    {
+      "date": "2026-12-25",
+      "name": "Christmas / Winter Vacation"
+    },
+    {
+      "date": "2026-12-26",
+      "name": "Christmas / Winter Vacation"
+    },
+    {
+      "date": "2026-12-27",
+      "name": "Christmas / Winter Vacation"
+    },
+    {
+      "date": "2026-12-28",
+      "name": "Christmas / Winter Vacation"
+    },
+    {
+      "date": "2026-12-29",
+      "name": "Christmas / Winter Vacation"
+    },
+    {
+      "date": "2026-12-30",
+      "name": "Christmas / Winter Vacation"
+    },
+    {
+      "date": "2026-12-31",
+      "name": "Christmas / Winter Vacation"
+    }
+  ]
+}

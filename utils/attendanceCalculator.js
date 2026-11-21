@@ -1,6 +1,58 @@
 const { DateTime } = require("luxon");
 
 // Attendance Calculator
+//
+// Counts how many classes a subject has in the semester.
+//
+// A subject can have MORE THAN ONE class on the same day
+// (for example Monday 10:00 and Monday 14:00). Every class counts,
+// because attendance (present / absent / holiday / cancel) is also saved
+// once per class, not once per day.
+// Two entries with the same day AND the same start time are one class
+// (they could not be saved twice anyway).
+
+const IST = "Asia/Kolkata";
+
+// { Monday: 2, Tuesday: 1 ... }  -> how many classes the subject has on each weekday
+function classesPerWeekday(schedule) {
+
+  const seen = new Set();
+  const perDay = {};
+
+  for (const item of schedule || []) {
+
+    if (!item || !item.day) continue;
+
+    const key = `${item.day}|${item.start || ""}`;
+
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+
+    perDay[item.day] = (perDay[item.day] || 0) + 1;
+  }
+
+  return perDay;
+}
+
+// Number of classes between two days (both included)
+function countClasses(schedule, from, to) {
+
+  const perDay = classesPerWeekday(schedule);
+
+  let total = 0;
+
+  let currentDate = from;
+
+  while (currentDate <= to) {
+
+    total += perDay[currentDate.toFormat("cccc")] || 0;
+
+    currentDate = currentDate.plus({ days: 1 });
+  }
+
+  return total;
+}
 
 function calculateTotalClasses(subject, semester) {
 
@@ -9,13 +61,13 @@ function calculateTotalClasses(subject, semester) {
   // Semester start date
   const semesterStart = DateTime
     .fromJSDate(semester.startDate)
-    .setZone("Asia/Kolkata")
+    .setZone(IST)
     .startOf("day");
 
   // Semester end date
   const semesterEnd = DateTime
     .fromJSDate(semester.endDate)
-    .setZone("Asia/Kolkata")
+    .setZone(IST)
     .startOf("day");
 
 
@@ -23,16 +75,16 @@ function calculateTotalClasses(subject, semester) {
   // 1. Calculate classes from old schedules
   // ---------------------------------------
 
-  for (const history of subject.scheduleHistory) {
+  for (const history of subject.scheduleHistory || []) {
 
     let scheduleStart = DateTime
       .fromJSDate(history.effectiveFrom)
-      .setZone("Asia/Kolkata")
+      .setZone(IST)
       .startOf("day");
 
     let scheduleEnd = DateTime
       .fromJSDate(history.effectiveTo)
-      .setZone("Asia/Kolkata")
+      .setZone(IST)
       .startOf("day");
 
 
@@ -53,29 +105,7 @@ function calculateTotalClasses(subject, semester) {
       continue;
     }
 
-
-    const subjectDays = history.schedule.map(
-      item => item.day
-    );
-
-
-    let currentDate = scheduleStart;
-
-
-    while (currentDate <= scheduleEnd) {
-
-      const currentDay = currentDate.toFormat("cccc");
-
-      if (subjectDays.includes(currentDay)) {
-        totalClasses++;
-      }
-
-      currentDate = currentDate.plus({
-        days: 1
-      });
-
-    }
-
+    totalClasses += countClasses(history.schedule, scheduleStart, scheduleEnd);
   }
 
 
@@ -85,7 +115,7 @@ function calculateTotalClasses(subject, semester) {
 
   let currentScheduleStart = DateTime
     .fromJSDate(subject.currentScheduleFrom)
-    .setZone("Asia/Kolkata")
+    .setZone(IST)
     .startOf("day");
 
 
@@ -104,28 +134,7 @@ function calculateTotalClasses(subject, semester) {
   // Only calculate if valid date range
   if (currentScheduleStart <= currentScheduleEnd) {
 
-    const subjectDays = subject.currentSchedule.map(
-      item => item.day
-    );
-
-
-    let currentDate = currentScheduleStart;
-
-
-    while (currentDate <= currentScheduleEnd) {
-
-      const currentDay = currentDate.toFormat("cccc");
-
-      if (subjectDays.includes(currentDay)) {
-        totalClasses++;
-      }
-
-      currentDate = currentDate.plus({
-        days: 1
-      });
-
-    }
-
+    totalClasses += countClasses(subject.currentSchedule, currentScheduleStart, currentScheduleEnd);
   }
 
 

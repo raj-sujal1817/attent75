@@ -26,6 +26,8 @@
 
     <form action="/subjects" method="POST" novalidate id="addSubjectForm">
 
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
       <!-- Subject Name -->
       <div class="mb-4">
         <label class="form-label" for="subjectName">

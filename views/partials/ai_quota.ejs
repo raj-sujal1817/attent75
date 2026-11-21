@@ -1,0 +1,46 @@
+<%
+  // Shows how many AI reads the user has left today.
+  // Needs `aiQuota` ({ limit, used, left, resetText, resetIn }); shows nothing if it is missing.
+  const q = typeof aiQuota !== 'undefined' ? aiQuota : null;
+%>
+<% if (q) { %>
+  <% if (q.left <= 0) { %>
+    <div id="aiQuotaBox" data-locked="1" class="d-flex align-items-start gap-3 rounded-3 p-3 mb-4"
+         style="background:#fef2f2;border:1.5px solid #fecaca;color:#991b1b;">
+      <i class="bi bi-hourglass-split flex-shrink-0 mt-1"></i>
+      <div style="font-size:.9rem;">
+        <div class="fw-bold">You have used all <%= q.limit %> AI reads for today</div>
+        <div>
+          Your limit resets at <strong><%= q.resetText %></strong> (in about <%= q.resetIn %>).
+          Please come back then to upload again.
+        </div>
+      </div>
+    </div>
+  <% } else { %>
+    <div id="aiQuotaBox" class="d-flex align-items-start gap-3 rounded-3 p-3 mb-4"
+         style="background:#f0f6ff;border:1.5px solid #bfdbfe;color:#1e40af;">
+      <i class="bi bi-stars flex-shrink-0 mt-1"></i>
+      <div style="font-size:.9rem;">
+        <div class="fw-bold">AI reads left today: <%= q.left %> of <%= q.limit %></div>
+        <div>
+          AI reading is free, so each user gets <%= q.limit %> per day. It resets at <%= q.resetText %>.
+          <% if (q.left === 1) { %>This is your last one for today, so use a clear file.<% } %>
+        </div>
+      </div>
+    </div>
+  <% } %>
+
+  <% if (q.left <= 0) { %>
+    <script>
+      // No reads left: switch the upload form off so nobody uploads a file for nothing
+      document.addEventListener('DOMContentLoaded', function () {
+        var form = document.querySelector('form[enctype="multipart/form-data"]');
+        if (!form) return;
+        var file = form.querySelector('input[type="file"]');
+        var btn  = form.querySelector('button[type="submit"]');
+        if (file) file.disabled = true;
+        if (btn)  btn.disabled = true;
+      });
+    </script>
+  <% } %>
+<% } %>

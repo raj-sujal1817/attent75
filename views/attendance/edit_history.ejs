@@ -52,6 +52,8 @@
 
         <form action="/attendance/<%= record._id %>" method="POST" class="d-grid gap-2">
 
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
           <button
             type="submit"
             name="status"

@@ -23,6 +23,7 @@
   </p>
 
 <form action="/subjects" method="POST">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
   <% routineData.subjects.forEach((subject, index) => { %>
 

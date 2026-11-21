@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><%- include('../partials/head', { title: 'Review Holidays' }) %></head>
+<body>
+
+<%- include('../partials/navbar', { page: 'holidays', user: typeof user !== 'undefined' ? user : { username: 'Rahul' } }) %>
+
+<%
+  /*
+    Expected data from the route (after Gemini extraction):
+
+    holidayData = {
+      title:    "BEU Holiday Notice 2026",            // optional, user can edit
+      holidays: [ { date: "2026-11-08", name: "Diwali" }, ... ]   // date = yyyy-MM-dd
+    }
+
+    semester = { startDate, endDate }                  // optional, used to flag dates outside the semester
+  */
+
+  const IST = 'Asia/Kolkata';
+
+  function ymd(d) {
+    if (!d) return '';
+    if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return '';
+    return dt.toLocaleDateString('en-CA', { timeZone: IST });
+  }
+
+  function esc(s) {
+    return String(s === undefined || s === null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  const data      = (typeof holidayData !== 'undefined' && holidayData) ? holidayData : { title: '', holidays: [] };
+  const noticeTitleValue = data.title || 'Holiday Notice';
+
+  const sem       = (typeof semester !== 'undefined' && semester) ? semester : null;
+  const semStart  = sem && sem.startDate ? ymd(sem.startDate) : '';
+  const semEnd    = sem && sem.endDate   ? ymd(sem.endDate)   : '';
+
+  const rows = (Array.isArray(data.holidays) ? data.holidays : [])
+    .map(function (h) { return { date: ymd(h && h.date), name: (h && h.name) || '', warning: (h && h.warning) || '' }; })
+    .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+
+  // One single source of truth for a row's markup (used for the rows below
+  // and for the <template> used by the "Add holiday" button).
+  // `warning` is set by the server when a date looks wrong (for example the weekday
+  // printed in the notice does not match). It stays visible until the user changes the date.
+  function rowMarkup(i, date, name, checked, warning) {
+    return `
+      <div class="holiday-row rounded-3 p-3 mb-2" style="background:#f8faff;border:1.5px solid #e0eaff;"
+           data-server-warning="${esc(warning || '')}" data-orig-date="${esc(date)}">
+        <div class="d-flex gap-3 align-items-start">
+
+          <div class="pt-4 mt-1">
+            <input class="form-check-input row-check" type="checkbox"
+                   name="holidays[${i}][selected]" value="1" ${checked ? 'checked' : ''}
+                   style="width:1.25rem;height:1.25rem;cursor:pointer;"
+                   aria-label="Include this holiday">
+          </div>
+
+          <div class="flex-grow-1">
+            <div class="row g-2">
+              <div class="col-12 col-sm-5">
+                <label class="form-label mb-1" style="font-size:.8rem;">Date</label>
+                <input type="date" class="form-control form-control-sm row-date"
+                       name="holidays[${i}][date]" value="${esc(date)}">
+                <div class="row-weekday text-muted mt-1" style="font-size:.75rem;min-height:1em;"></div>
+              </div>
+              <div class="col-12 col-sm-7">
+                <label class="form-label mb-1" style="font-size:.8rem;">Holiday name</label>
+                <input type="text" class="form-control form-control-sm row-name"
+                       name="holidays[${i}][name]" value="${esc(name)}"
+                       maxlength="80" placeholder="e.g. Diwali">
+              </div>
+            </div>
+
+            <div class="row-msg mt-2" style="display:none;font-size:.8rem;"></div>
+          </div>
+
+          <button type="button" class="btn btn-sm btn-outline-danger row-remove flex-shrink-0 mt-4"
+                  title="Remove this row" aria-label="Remove this row">
+            <i class="bi bi-x-lg"></i>
+          </button>
+
+        </div>
+      </div>`;
+  }
+%>
+
+<main class="container py-4" style="max-width:820px;">
+
+  <div class="mb-4">
+    <a href="/holidays/import" class="text-decoration-none text-muted small d-flex align-items-center gap-1 mb-3">
+      <i class="bi bi-arrow-left"></i> Upload a different file
+    </a>
+    <h2 class="fw-bold mb-1" style="font-family:'Poppins',sans-serif;color:#1a3a5c;">
+      <i class="bi bi-calendar-check me-2 text-primary"></i>Review Holidays
+    </h2>
+    <p class="text-muted mb-0">
+      <% if (rows.length > 0) { %>
+        AI found <strong><%= rows.length %></strong> holiday<%= rows.length === 1 ? '' : 's' %> in your notice.
+        Check the dates, fix anything that looks wrong, then save.
+      <% } else { %>
+        Add the holidays from your notice, then save.
+      <% } %>
+    </p>
+  </div>
+
+  <% if (typeof error !== 'undefined' && error) { %>
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4" role="alert">
+      <i class="bi bi-exclamation-circle-fill me-2"></i>
+      <%= error %>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  <% } %>
+
+  <% if (rows.length === 0) { %>
+    <div class="alert alert-warning rounded-3 mb-4" role="alert">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      AI could not find any holiday dates in this file. You can add them manually below,
+      or <a href="/holidays/import" class="alert-link">upload a clearer file</a>.
+    </div>
+  <% } %>
+
+  <form action="/holidays" method="POST" id="reviewForm" novalidate
+        data-sem-start="<%= semStart %>" data-sem-end="<%= semEnd %>">
+
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="importMode" value="ai">
+
+    <!-- Notice title -->
+    <div class="card p-4 mb-4">
+      <label class="form-label" for="noticeTitle">
+        <i class="bi bi-file-earmark-text me-1 text-primary"></i> Notice Title
+      </label>
+      <input type="text" class="form-control form-control-lg" id="noticeTitle" name="noticeTitle"
+             value="<%= noticeTitleValue %>" maxlength="80" placeholder="e.g. BEU Holiday Notice 2026" required>
+      <div class="form-text">This is how the notice will appear on your Holidays page.</div>
+    </div>
+
+    <!-- Holidays -->
+    <div class="card p-4 mb-4">
+
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2">
+          <p class="fw-semibold mb-0" style="font-size:.95rem;color:#1a3a5c;">
+            <i class="bi bi-calendar-heart me-1 text-primary"></i> Holidays
+          </p>
+          <span id="selectedCounter" class="badge rounded-pill" style="background:#dbeafe;color:#1e40af;font-weight:600;"></span>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm" id="selectAllBtn">
+            <i class="bi bi-check2-all me-1"></i>Select all
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="clearAllBtn">
+            Clear
+          </button>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="addRowBtn">
+            <i class="bi bi-plus-lg me-1"></i>Add holiday
+          </button>
+        </div>
+      </div>
+
+      <div id="holidayRows">
+        <% rows.forEach(function (h, i) {
+             const outside = h.date && ((semStart && h.date < semStart) || (semEnd && h.date > semEnd));
+             const checked = !!h.date && !outside;
+        %>
+          <%- rowMarkup(i, h.date, h.name, checked, h.warning) %>
+        <% }); %>
+      </div>
+
+      <!-- display is toggled from JS (no d-flex class: its !important would override it) -->
+      <div id="validationBanner" class="alert alert-danger rounded-3 mt-2 mb-0 py-2"
+           style="display:none;align-items:center;gap:.5rem;font-size:.85rem;">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span id="validationBannerText"></span>
+      </div>
+
+    </div>
+
+    <!-- Apply now -->
+    <div class="card p-4 mb-4">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="applyNow" value="1" id="applyNow" checked>
+        <label class="form-check-label fw-semibold" for="applyNow">
+          Apply this notice right away
+        </label>
+        <div class="form-text">
+          Your classes on these dates will be marked as Holiday. If you leave this unchecked,
+          the notice is saved and you can apply it later from the Holidays page.
+        </div>
+      </div>
+    </div>
+
+    <!-- AI note -->
+    <div class="rounded-3 p-3 mb-4 d-flex gap-3 align-items-start" style="background:#f0f6ff;border:1.5px solid #bfdbfe;">
+      <i class="bi bi-lightbulb text-primary flex-shrink-0 mt-1"></i>
+      <div style="font-size:.85rem;color:#1e40af;">
+        <strong>Tip:</strong> AI can misread dates. Use the weekday shown under each date to double check it
+        against your notice.
+        <% if (semStart && semEnd) { %>
+          Dates outside your semester are left unselected because they have no effect on your attendance.
+        <% } %>
+      </div>
+    </div>
+
+    <div class="d-grid gap-2">
+      <button type="submit" class="btn btn-primary btn-lg" id="saveBtn">
+        <i class="bi bi-check2-circle me-2"></i><span id="saveBtnLabel">Save Holidays</span>
+      </button>
+      <a href="/holidays" class="btn btn-outline-secondary btn-lg">Cancel</a>
+    </div>
+
+  </form>
+
+  <!-- Markup for rows added with the "Add holiday" button -->
+  <template id="rowTemplate"><%- rowMarkup('__I__', '', '', true) %></template>
+
+</main>
+
+<%- include('../partials/footer') %>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+(function () {
+
+  var form        = document.getElementById('reviewForm');
+  var list        = document.getElementById('holidayRows');
+  var tpl         = document.getElementById('rowTemplate');
+  var counter     = document.getElementById('selectedCounter');
+  var saveBtn     = document.getElementById('saveBtn');
+  var saveLabel   = document.getElementById('saveBtnLabel');
+  var banner      = document.getElementById('validationBanner');
+  var bannerText  = document.getElementById('validationBannerText');
+  var titleInput  = document.getElementById('noticeTitle');
+
+  var semStart    = form.dataset.semStart || '';
+  var semEnd      = form.dataset.semEnd || '';
+  var nextIndex   = list.querySelectorAll('.holiday-row').length;
+
+  function rows() {
+    return Array.prototype.slice.call(list.querySelectorAll('.holiday-row'));
+  }
+
+  function weekdayOf(value) {
+    if (!value) return '';
+    var d = new Date(value + 'T00:00:00');
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-IN', { weekday: 'long' });
+  }
+
+  function setMessage(row, kind, text) {
+    var msg = row.querySelector('.row-msg');
+
+    if (!text) {
+      msg.style.display = 'none';
+      msg.textContent = '';
+      return;
+    }
+
+    msg.style.display = 'block';
+    msg.style.color = kind === 'error' ? '#dc3545' : '#b45309';
+    msg.innerHTML = '';
+
+    var icon = document.createElement('i');
+    icon.className = 'bi ' + (kind === 'error' ? 'bi-exclamation-circle' : 'bi-info-circle') + ' me-1';
+    msg.appendChild(icon);
+    msg.appendChild(document.createTextNode(text));
+  }
+
+  function validate() {
+    var all = rows();
+    var dateCount = {};
+    var selected = 0;
+    var hasError = false;
+
+    // count selected dates to find duplicates
+    all.forEach(function (r) {
+      if (!r.querySelector('.row-check').checked) return;
+      var v = r.querySelector('.row-date').value;
+      if (v) dateCount[v] = (dateCount[v] || 0) + 1;
+    });
+
+    all.forEach(function (r) {
+      var checked = r.querySelector('.row-check').checked;
+      var date    = r.querySelector('.row-date').value;
+
+      r.querySelector('.row-weekday').textContent = weekdayOf(date);
+
+      if (!checked) {
+        r.style.opacity = '.55';
+        r.style.borderColor = '#e0eaff';
+        setMessage(r, '', '');
+        return;
+      }
+
+      r.style.opacity = '1';
+      selected++;
+
+      if (!date) {
+        hasError = true;
+        r.style.borderColor = '#f87171';
+        setMessage(r, 'error', 'Pick a date for this holiday.');
+      } else if (dateCount[date] > 1) {
+        hasError = true;
+        r.style.borderColor = '#f87171';
+        setMessage(r, 'error', 'This date is selected more than once.');
+      } else if ((semStart && date < semStart) || (semEnd && date > semEnd)) {
+        r.style.borderColor = '#fbbf24';
+        setMessage(r, 'warn', 'Outside your semester dates, so this will be ignored.');
+      } else if (r.dataset.serverWarning && r.dataset.origDate === date) {
+        // AI/notice mismatch: shown until the user changes the date
+        r.style.borderColor = '#fbbf24';
+        setMessage(r, 'warn', r.dataset.serverWarning);
+      } else {
+        r.style.borderColor = '#e0eaff';
+        setMessage(r, '', '');
+      }
+    });
+
+    counter.textContent = selected + ' of ' + all.length + ' selected';
+
+    var titleOk = titleInput.value.trim().length > 0;
+    var problem = '';
+
+    if (hasError)            problem = 'Fix the highlighted rows before saving.';
+    else if (!titleOk)       problem = 'Please give this notice a title.';
+    else if (selected === 0) problem = 'Select at least one holiday to save.';
+
+    banner.style.display = problem ? 'flex' : 'none';
+    bannerText.textContent = problem;
+
+    saveBtn.disabled = !!problem;
+  }
+
+  function addRow() {
+    var holder = document.createElement('div');
+    holder.innerHTML = tpl.innerHTML.replace(/__I__/g, String(nextIndex++));
+    var row = holder.firstElementChild;
+    list.appendChild(row);
+    validate();
+    row.querySelector('.row-date').focus();
+  }
+
+  // Delegated events for rows (existing and newly added)
+  list.addEventListener('input',  validate);
+  list.addEventListener('change', validate);
+
+  list.addEventListener('click', function (e) {
+    var btn = e.target.closest('.row-remove');
+    if (!btn) return;
+    btn.closest('.holiday-row').remove();
+    validate();
+  });
+
+  titleInput.addEventListener('input', validate);
+
+  document.getElementById('addRowBtn').addEventListener('click', addRow);
+
+  document.getElementById('selectAllBtn').addEventListener('click', function () {
+    rows().forEach(function (r) { r.querySelector('.row-check').checked = true; });
+    validate();
+  });
+
+  document.getElementById('clearAllBtn').addEventListener('click', function () {
+    rows().forEach(function (r) { r.querySelector('.row-check').checked = false; });
+    validate();
+  });
+
+  form.addEventListener('submit', function (e) {
+    validate();
+
+    if (saveBtn.disabled) {
+      e.preventDefault();
+      return;
+    }
+
+    // Only send the rows the user kept selected, numbered 0..n-1.
+    var index = 0;
+
+    rows().forEach(function (r) {
+      var inputs = r.querySelectorAll('input');
+
+      if (!r.querySelector('.row-check').checked) {
+        inputs.forEach(function (inp) { inp.disabled = true; });
+        return;
+      }
+
+      inputs.forEach(function (inp) {
+        inp.name = inp.name.replace(/^holidays\[[^\]]*\]/, 'holidays[' + index + ']');
+      });
+      index++;
+    });
+
+    saveBtn.disabled = true;
+    saveLabel.textContent = 'Saving...';
+  });
+
+  // If the user comes back with the browser's Back button, undo the "sending" state.
+  window.addEventListener('pageshow', function (e) {
+    if (!e.persisted) return;
+    form.querySelectorAll('input').forEach(function (inp) { inp.disabled = false; });
+    saveLabel.textContent = 'Save Holidays';
+    validate();
+  });
+
+  validate();
+
+})();
+</script>
+</body>
+</html>
