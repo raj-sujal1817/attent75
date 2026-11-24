@@ -45,7 +45,11 @@ const { DateTime } = require("luxon");
 
 const dns = require("dns");
 
-dns.setServers(["1.1.1.1", "8.8.8.8"]);
+// Public DNS is only forced on a developer machine (some home networks cannot
+// resolve MongoDB Atlas). Hosting platforms have working DNS, so leave it alone there.
+if (process.env.NODE_ENV !== "production") {
+  dns.setServers(["1.1.1.1", "8.8.8.8"]);
+}
 
 const { 
   nowIST,
@@ -63,6 +67,8 @@ const otp = require("./utils/otp");
 const { sendOtpEmail } = require("./utils/mailer");
 const { describeGeminiError } = require("./utils/geminiErrors");
 const aiQuota = require("./utils/aiQuota");
+const helmet = require("helmet");
+const compression = require("compression");
 const session = require("express-session");
 const MongoStore = require("connect-mongo").default;
 
@@ -71,10 +77,16 @@ const ejsMate = require("ejs-mate");
 const methodOverride = require("method-override");
 const app = express();
 
-// Production mein proxy (Render/Railway etc.) ke peeche secure cookies ke liye
-if (process.env.NODE_ENV === "production") {
+// Behind a proxy (Render / Railway etc.) the real visitor IP and "https" come from
+// the proxy headers. Without this, every user looks like the same IP to the rate
+// limiter and secure cookies do not work. Set TRUST_PROXY=0 to switch it off.
+const IS_PROD = process.env.NODE_ENV === "production";
+
+if (IS_PROD || process.env.TRUST_PROXY === "1") {
   app.set("trust proxy", 1);
 }
+
+app.disable("x-powered-by");
 
 const { csrfSync } = require("csrf-sync");
 
@@ -99,7 +111,7 @@ const calculateTotalClasses = require("./utils/attendanceCalculator");
 const dailyMark = require("./models/attendReview");
 const getWorkingDays = require("./utils/workingDaysCalci");
 const needToGet75 = require("./utils/needClassesCalci");
-const { getSubjectStatusCounts, getCountsFor } = require("./utils/subjectStatusCounts");
+const { getSubjectStatusCounts, getSubjectStatusCountsSplit, getCountsFor } = require("./utils/subjectStatusCounts");
 const fs = require("fs");
 
 // Holidays
@@ -123,16 +135,46 @@ const {
 
 
 
-// MogoDB Connection 
+// MongoDB connection
 
 const dbUrl = process.env.MONGO_URI;
 
-mongoose.connect(dbUrl)
+// Stop at start-up with a clear message instead of failing later on every request
+for (const name of ["MONGO_URI", "SESSION_SECRET"]) {
+  if (!process.env[name]) {
+    console.error(`Missing ${name} in environment variables. Server not started.`);
+    process.exit(1);
+  }
+}
+
+mongoose.connect(dbUrl, {
+  maxPoolSize: Number(process.env.MONGO_POOL_SIZE) || 20,
+  minPoolSize: 2,   // keep a few connections warm so the first visit is not slow
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000
+})
 .then(() => console.log("CONNECTED"))
-.catch(err => console.log(err));
+.catch(err => {
+  // A server without a database only shows broken pages, so stop and let the host restart it
+  console.error("MongoDB connection failed:", err);
+  process.exit(1);
+});
 
 
-//Session 
+// Health check (before sessions, so monitors do not create session records)
+
+app.get("/health", (req, res) => {
+  const dbUp = mongoose.connection.readyState === 1;
+  res.status(dbUp ? 200 : 503).json({ ok: dbUp });
+});
+
+// Smaller responses, and standard security headers.
+// CSP is off because the pages use inline styles/scripts and CDN files.
+app.use(compression());
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+
+//Session
 
 app.use(
   session({
@@ -141,14 +183,17 @@ app.use(
     saveUninitialized: false,
 
     store: MongoStore.create({
-      mongoUrl: dbUrl
+      mongoUrl: dbUrl,
+      // rolling:true would otherwise rewrite the session in MongoDB on EVERY request.
+      // Now it is refreshed at most once a day (data changes are still saved at once).
+      touchAfter: 24 * 3600
     }),
 
     cookie: {
       maxAge: 30*24*60*60*1000,
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production"
+      secure: IS_PROD
     },
 
     rolling: true
@@ -501,11 +546,26 @@ app.get("/", (req, res) => {
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: Number(process.env.AUTH_RATE_LIMIT) || 30,   // per IP per 15 minutes
+  limit: Number(process.env.AUTH_RATE_LIMIT) || 100,   // per IP per 15 minutes (a hostel / college Wi-Fi shares one IP)
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
     res.status(429).send("Too many attempts. Please wait a few minutes and try again.");
+  }
+});
+
+// Per e-mail limit: stops guessing passwords / codes for one account even when the
+// attacker changes IP. Counted per e-mail address, so one user cannot block others.
+const emailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: Number(process.env.EMAIL_RATE_LIMIT) || 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { keyGeneratorIpFallback: false },
+  keyGenerator: (req) => "email:" + String((req.body && req.body.email) || "").trim().toLowerCase().slice(0, 254),
+  skip: (req) => !(req.body && req.body.email),
+  handler: (req, res) => {
+    res.status(429).send("Too many attempts for this account. Please wait a few minutes and try again.");
   }
 });
 
@@ -617,7 +677,7 @@ app.get("/signup", (req, res) => {
   res.render("users/signup.ejs");
 });
 
-app.post("/signup", authLimiter, async (req, res) => {
+app.post("/signup", authLimiter, emailLimiter, async (req, res) => {
 
   const username = String(req.body.username || "").replace(/\s+/g, " ").trim();
   const email = normalizeEmail(req.body.email);
@@ -798,7 +858,7 @@ app.get("/login", (req, res) => {
   res.render("users/login.ejs");
 });
 
-app.post("/login", authLimiter, async (req, res) => {
+app.post("/login", authLimiter, emailLimiter, async (req, res) => {
 
   const email = normalizeEmail(req.body.email);
   const password = String(req.body.password || "");
@@ -854,7 +914,7 @@ app.get("/forgot-password", (req, res) => {
   res.render("users/forgot_password.ejs");
 });
 
-app.post("/forgot-password", authLimiter, async (req, res) => {
+app.post("/forgot-password", authLimiter, emailLimiter, async (req, res) => {
 
   const email = normalizeEmail(req.body.email);
 
@@ -989,6 +1049,8 @@ app.post("/reset-password/resend", authLimiter, async (req, res) => {
 
 //middilware function 
 
+const userCache = new Map();
+
 app.use(async (req, res, next) => {
   try {
     res.locals.user = null;
@@ -997,7 +1059,21 @@ app.use(async (req, res, next) => {
       return next();
     }
 
-    const user = await userInfo.findById(req.session.userId);
+    // The navbar only needs the username. Remember it in memory for 5 minutes so
+    // most requests skip this database round trip.
+    const uidKey = String(req.session.userId);
+    const cached = userCache.get(uidKey);
+
+    let user = cached && Date.now() - cached.at < 5 * 60 * 1000 ? cached.user : null;
+
+    if (!user) {
+      user = await userInfo.findById(req.session.userId).select("username").lean();
+
+      if (user) {
+        if (userCache.size > 20000) userCache.clear();
+        userCache.set(uidKey, { user, at: Date.now() });
+      }
+    }
 
     if (!user) {
       return req.session.destroy((err) => {
@@ -1042,23 +1118,19 @@ function requireLogin(req, res, next) {
 app.use(requireLogin);
 
 
-// gemini api test (ab login ke peeche hai) ....
-
-app.get("/test-gemini", async (req, res) => {
-  try {
-    const result = await testGemini();
-
-    res.send(`
-      <h1>Gemini Connected ✅</h1>
-      <p>${result}</p>
-    `);
-
-  } catch (err) {
-    console.error("Gemini Error:", err);
-
-    res.status(500).send("Gemini connection failed.");
-  }
-});
+// Gemini connection test: development only (in production any logged-in user
+// could call it and use up the shared AI quota).
+if (!IS_PROD) {
+  app.get("/test-gemini", async (req, res) => {
+    try {
+      const result = await testGemini();
+      res.send(`<h1>Gemini Connected ✅</h1><p>${result}</p>`);
+    } catch (err) {
+      console.error("Gemini Error:", err);
+      res.status(500).send("Gemini connection failed.");
+    }
+  });
+}
 
 
 //====================================================
@@ -1067,13 +1139,24 @@ app.get("/test-gemini", async (req, res) => {
 //====================================================
 
 // Everyone gets the default notice(s) applied the first time they come in.
+// (Remembered in memory so the 5 busiest pages do not repeat the check on every visit.)
+const defaultsChecked = new Set();
+
 app.get(
   ["/dashboard", "/attendance/mark", "/attendance/history", "/subjects", "/holidays"],
   async (req, res, next) => {
-    try {
-      await ensureDefaultNotices(req.session.userId);
-    } catch (err) {
-      console.error("Default holiday notice error:", err);
+    const uid = String(req.session.userId);
+
+    // Already checked for this user since the server started: skip the database work
+    if (!defaultsChecked.has(uid)) {
+      try {
+        await ensureDefaultNotices(req.session.userId);
+
+        if (defaultsChecked.size > 20000) defaultsChecked.clear();   // keep memory small
+        defaultsChecked.add(uid);
+      } catch (err) {
+        console.error("Default holiday notice error:", err);
+      }
     }
     next();
   }
@@ -1083,11 +1166,14 @@ app.get(
 // so new classes also become Holiday and removed classes stop being Holiday.
 async function refreshHolidays(userId) {
   try {
+    lastHolidayRefresh.set(String(userId), Date.now());
     await reapplyAppliedNotices(userId);
   } catch (err) {
     console.error("Holiday refresh error:", err);
   }
 }
+
+const lastHolidayRefresh = new Map();
 
 function flashAndRedirect(req, res, type, message, to) {
   req.session.flash = { [type]: message };
@@ -1106,8 +1192,18 @@ app.get("/holidays", async (req, res) => {
   try {
     const userId = req.session.userId;
 
-    // Quietly repairs anything that got out of step (cheap, idempotent)
-    await refreshHolidays(userId);
+    // Quietly repairs anything that got out of step. Every route that changes
+    // subjects / semester already calls refreshHolidays itself, so this safety
+    // net only needs to run now and then (not on every page view).
+    const key = String(userId);
+    const last = lastHolidayRefresh.get(key) || 0;
+
+    if (Date.now() - last > 10 * 60 * 1000) {
+      await refreshHolidays(userId);
+
+      if (lastHolidayRefresh.size > 20000) lastHolidayRefresh.clear();
+      lastHolidayRefresh.set(key, Date.now());
+    }
 
     const holidayNotices = await getNoticesForUser(userId);
 
@@ -1364,6 +1460,22 @@ app.post("/semester/setup", async (req, res) => {
       endDate,
     } = req.body;
 
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (
+      !String(semesterName || "").trim() ||
+      String(semesterName).length > 60 ||
+      Number.isNaN(start.getTime()) ||
+      Number.isNaN(end.getTime())
+    ) {
+      return res.status(400).send("Please enter a semester name and valid dates.");
+    }
+
+    if (end <= start) {
+      return res.status(400).send("Semester end date must be after the start date.");
+    }
+
     const semInfo = await semester.findOneAndUpdate(
 
       {
@@ -1416,19 +1528,6 @@ app.post("/semester/setup", async (req, res) => {
 
 
 
-app.get("/time-check", (req, res) => {
-  res.json({
-    now: new Date(),
-    iso: new Date().toISOString(),
-    local: new Date().toString(),
-    timezoneOffset: new Date().getTimezoneOffset()
-  });
-});
-
-
-
-
-
 // dashboard
 
 app.get("/dashboard", async (req, res) => {
@@ -1440,13 +1539,15 @@ app.get("/dashboard", async (req, res) => {
 
     
 
-    const [subjects, semInfo, statusCounts, todayNoticeHoliday] = await Promise.all([
+    const [subjects, semInfo, splitCounts, todayNoticeHoliday, presentDates, holidayDates] = await Promise.all([
       // Only select fields this route actually uses — scheduleHistory isn't
       // needed here and can grow large over a semester.
-      userSubject.find({user:userId}).select("name currentSchedule totalClasses"),
-      semester.findOne({user:userId}),
-      // Single aggregation replacing the old 4-countDocuments-per-subject loop.
-      getSubjectStatusCounts(userId),
+      userSubject.find({user:userId}).select("name currentSchedule totalClasses").lean(),
+      semester.findOne({user:userId}).lean(),
+      // ONE pass over the user's records gives both sets of numbers:
+      //   all     = whole semester (semester-end denominator)
+      //   current = only records up to today (IST) (current attendance)
+      getSubjectStatusCountsSplit(userId, endOfTodayIST()),
       // Is today a holiday because of a holiday notice? (name is shown on the dashboard)
       dailyMark
         .findOne({
@@ -1456,12 +1557,20 @@ app.get("/dashboard", async (req, res) => {
           "holidayNotices.0": { $exists: true }
         })
         .select("holidayName")
-        .lean()
+        .lean(),
+
+      // Present days and holiday days (see the notes further down). They only need
+      // the user id, so they run together with everything above (one round trip).
+      dailyMark.distinct("date", { user: userId, status: "present" }),
+      dailyMark.distinct("date", { user: userId, status: "holiday", date: { $lte: endOfTodayIST() } })
     ]);
 
 
     let dailySchedule = [];
     let dashboardShow = [];
+
+    const statusCounts = splitCounts.all;
+    const currentStatusCounts = splitCounts.current;
 
     // Computed once instead of on every subject×class iteration.
     const todayDay = nowIST().toFormat("cccc");
@@ -1499,27 +1608,38 @@ app.get("/dashboard", async (req, res) => {
       // countDocuments queries per subject.
       const {
         present: presentCount,
-        absent: absentCount,
         holiday: holidayCount,
         cancel: cancelCount
       } = getCountsFor(statusCounts, subject._id);
 
+      // Current attendance is calculated independently for EACH subject:
+      // Present / (Present + Absent), using records up to today's IST date.
+      // Holiday and Cancel are excluded from classes actually conducted.
+      const currentCounts = getCountsFor(currentStatusCounts, subject._id);
+      const currentConductedClasses =
+        currentCounts.present + currentCounts.absent;
 
-      const finalClasses =  subject.totalClasses - holidayCount - cancelCount;
+      const currentPercent = currentConductedClasses > 0
+        ? (currentCounts.present * 100) / currentConductedClasses
+        : 0;
 
-      const finalPercent = finalClasses > 0 ? (presentCount * 100) / finalClasses : 0;
-
+      // Preserve the existing semester-end calculation:
+      // Present so far / (planned semester classes - holidays - cancellations).
+      const finalClasses = subject.totalClasses - holidayCount - cancelCount;
+      const finalPercent = finalClasses > 0
+        ? (presentCount * 100) / finalClasses
+        : 0;
 
       //push
 
       dashboardShow.push({
-
         subjectName: subject.name,
-
         presentCount,
-
+        currentPresentCount: currentCounts.present,
+        currentAbsentCount: currentCounts.absent,
+        currentConductedClasses,
+        currentPercent: currentPercent.toFixed(1),
         finalPercent: finalPercent.toFixed(1)
-
       });
 
     }
@@ -1564,10 +1684,7 @@ app.get("/dashboard", async (req, res) => {
     // Holidays are counted only up to today, because workingDays above is
     // counted only up to today too. (Holiday notices create Holiday records
     // for future dates as well; counting those would shrink the total.)
-    const [presentDates, holidayDates] = await Promise.all([
-      dailyMark.distinct("date", { user: userId, status: "present" }),
-      dailyMark.distinct("date", { user: userId, status: "holiday", date: { $lte: endOfTodayIST() } })
-    ]);
+    // (presentDates / holidayDates were fetched together with the other queries above.)
 
     const userPresentDays = presentDates.length;
 
@@ -1575,7 +1692,10 @@ app.get("/dashboard", async (req, res) => {
 
     const actulWorkingDays = workingDays - userHolidays ;
 
-    const biometricPercent = (userPresentDays * 100) / actulWorkingDays ;
+    // No working days yet (e.g. semester not started) must not show NaN / Infinity
+    const biometricPercent = actulWorkingDays > 0
+      ? (userPresentDays * 100) / actulWorkingDays
+      : 0;
 
     const needDays = needToGet75(userPresentDays, actulWorkingDays);  
 
@@ -2306,20 +2426,23 @@ app.post("/subjects/:id/delete", async (req, res) => {
 // in exactly one place.
 // ============================================================
 
-async function getTodayClassesWithStatus(userId) {
-
-  const subjects = await userSubject.find({user: userId}).select("name currentSchedule");
+async function getTodayClassesWithStatus(userId, knownSubjects) {
 
   const startOfDay = startOfTodayIST();
   const endOfDay = endOfTodayIST();
 
-  const todayMark = await dailyMark.find({
-    user: userId,
-    date: {
-      $gte: startOfDay,
-      $lte: endOfDay
-    }
-  });
+  // Subjects and today's marks do not depend on each other: fetch together.
+  // (knownSubjects: the caller already loaded them, so skip that query.)
+  const [subjects, todayMark] = await Promise.all([
+    knownSubjects || userSubject.find({user: userId}).select("name currentSchedule").lean(),
+    dailyMark.find({
+      user: userId,
+      date: {
+        $gte: startOfDay,
+        $lte: endOfDay
+      }
+    }).lean()
+  ]);
 
   const todayDay = nowIST().toFormat("cccc");
 
@@ -2363,7 +2486,7 @@ async function getTodayClassesWithStatus(userId) {
 //   keeps working even with JavaScript disabled.
 async function respondAfterAttendanceChange(req, res) {
   if (req.xhr) {
-    const classes = await getTodayClassesWithStatus(req.session.userId);
+    const classes = await getTodayClassesWithStatus(req.session.userId, req.todaySubjects);
     return res.json({ success: true, classes });
   }
   return res.redirect("/attendance/mark");
@@ -2406,8 +2529,11 @@ app.post("/attendance/mark", async (req, res) => {
 
     const [semInfo, subjects] = await Promise.all([
       semester.findOne({ user: req.session.userId }),
-      userSubject.find({ user: req.session.userId }).select("name currentSchedule")
+      userSubject.find({ user: req.session.userId }).select("name currentSchedule").lean()
     ]);
+
+    // Reused when the fresh class list is sent back (saves one query)
+    req.todaySubjects = subjects;
 
 
     // ========================================================
@@ -2564,23 +2690,38 @@ app.post("/attendance/mark", async (req, res) => {
     // then the whole day is considered Holiday.
     // ========================================================
 
-    const holidayRecords =
-      await dailyMark.find({
+    // The three lookups below do not depend on each other, so they run together
+    // (one round trip instead of three).
+    const [holidayRecords, noticeHolidayToday, prefetchedRecord] =
+      await Promise.all([
 
-        user:
-          req.session.userId,
+        dailyMark.find({
+          user: req.session.userId,
+          date: today,
+          status: "holiday"
+        })
+        .select("subject startTime")
+        .lean(),
 
-        date:
-          today,
+        dailyMark
+          .findOne({
+            user: req.session.userId,
+            date: today,
+            "holidayNotices.0": { $exists: true }
+          })
+          .select("holidayName")
+          .lean(),
 
-        status:
-          "holiday"
-
-      })
-      .select(
-        "subject startTime"
-      )
-      .lean();
+        // The record for the tapped class (only needed for Present / Absent / Cancel)
+        (mongoose.isValidObjectId(req.body.subjectId) && req.body.startTime)
+          ? dailyMark.findOne({
+              user: req.session.userId,
+              subject: req.body.subjectId,
+              date: today,
+              startTime: req.body.startTime
+            })
+          : Promise.resolve(null)
+      ]);
 
 
     // ========================================================
@@ -2634,16 +2775,6 @@ app.post("/attendance/mark", async (req, res) => {
     // notice from the Holidays page (that also restores the old status).
     // A Holiday the user pressed by themselves is not locked.
     // ========================================================
-
-    const noticeHolidayToday =
-      await dailyMark
-        .findOne({
-          user: req.session.userId,
-          date: today,
-          "holidayNotices.0": { $exists: true }
-        })
-        .select("holidayName")
-        .lean();
 
     const noticeHolidayMessage = noticeHolidayToday
       ? `Today is a holiday${noticeHolidayToday.holidayName ? ` (${noticeHolidayToday.holidayName})` : ""} from a holiday notice. ` +
@@ -2718,66 +2849,34 @@ app.post("/attendance/mark", async (req, res) => {
       // will be changed to Holiday.
       // ======================================================
 
-      for (
-        const cls of todayClasses
-      ) {
-
-        await dailyMark.findOneAndUpdate(
-
-          {
-
-            user:
-              req.session.userId,
-
-            subject:
-              cls.subjectId,
-
-            date:
-              today,
-
-            startTime:
-              cls.startTime
-
-          },
-
-          {
-
-            user:
-              req.session.userId,
-
-            subject:
-              cls.subjectId,
-
-            subjectName:
-              cls.subjectName,
-
-            date:
-              today,
-
-            startTime:
-              cls.startTime,
-
-            endTime:
-              cls.endTime,
-
-            status:
-              "holiday"
-
-          },
-
-          {
-
-            upsert:
-              true,
-
-            new:
-              true
-
+      // One database call for all of today's classes (instead of one per class)
+      await dailyMark.bulkWrite(
+        todayClasses.map(cls => ({
+          updateOne: {
+            filter: {
+              user: req.session.userId,
+              subject: cls.subjectId,
+              date: today,
+              startTime: cls.startTime
+            },
+            update: {
+              $set: {
+                subjectName: cls.subjectName,
+                endTime: cls.endTime,
+                status: "holiday"
+              },
+              $setOnInsert: {
+                user: req.session.userId,
+                subject: cls.subjectId,
+                date: today,
+                startTime: cls.startTime
+              }
+            },
+            upsert: true
           }
-
-        );
-
-      }
+        })),
+        { ordered: false }
+      );
 
 
       return await respondAfterAttendanceChange(req, res);
@@ -2891,22 +2990,7 @@ app.post("/attendance/mark", async (req, res) => {
     // 19. Find existing attendance record
     // ========================================================
 
-    const existingRecord =
-      await dailyMark.findOne({
-
-        user:
-          req.session.userId,
-
-        subject:
-          subjectId,
-
-        date:
-          today,
-
-        startTime:
-          startTime
-
-      });
+    const existingRecord = prefetchedRecord;
 
 
     // ========================================================
@@ -3023,6 +3107,16 @@ app.post("/attendance/mark", async (req, res) => {
   } catch (
     err
   ) {
+
+    // Two quick taps can try to create the same record twice. The unique index
+    // stops the second one: that is not an error for the user, show the fresh state.
+    if (err && err.code === 11000) {
+      try {
+        return await respondAfterAttendanceChange(req, res);
+      } catch (e) {
+        console.error("Attendance refresh after duplicate failed:", e);
+      }
+    }
 
     console.error(
       "❌ Attendance marking error:",
@@ -3147,6 +3241,11 @@ app.get("/pyq", (req, res) => {
 
 
 
+// Unknown page
+app.use((req, res) => {
+  res.status(404).send("Page not found.");
+});
+
 // Error handler (ek hi rakha hai)
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
@@ -3167,6 +3266,40 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 9010;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`app is listen on port ${PORT}`);
 });
+
+// A hung request must not stay open forever
+server.requestTimeout = 120000;
+server.headersTimeout = 65000;
+server.keepAliveTimeout = 61000;   // longer than the hosting proxy's, avoids random 502s
+
+// One bad promise somewhere must be logged, not silently kill (or freeze) the app
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+  process.exit(1);   // state is unknown: exit and let the host restart a clean process
+});
+
+// Host is restarting / deploying: finish running requests, then close the database
+function shutdown(signal) {
+  console.log(`${signal} received, shutting down...`);
+
+  server.close(async () => {
+    try {
+      await mongoose.connection.close();
+    } catch (e) {
+      console.error("Error while closing database:", e);
+    }
+    process.exit(0);
+  });
+
+  setTimeout(() => process.exit(1), 10000).unref();   // do not hang forever
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

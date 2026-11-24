@@ -9,7 +9,7 @@
 const mongoose = require("mongoose");
 const dailyMark = require("../models/attendReview");
 
-async function getSubjectStatusCounts(userId) {
+async function getSubjectStatusCounts(userId, throughDate = null) {
 
   // IMPORTANT: Mongoose auto-casts query filter values to the schema type
   // for .find()/.countDocuments()/etc, but it does NOT do this for
@@ -25,8 +25,17 @@ async function getSubjectStatusCounts(userId) {
       ? userId
       : new mongoose.Types.ObjectId(userId);
 
+  const match = { user: userObjectId };
+
+  // Optional cutoff for "current attendance": count only records dated
+  // on or before the current IST date. Existing callers without a cutoff
+  // keep the original all-semester behaviour.
+  if (throughDate) {
+    match.date = { $lte: throughDate };
+  }
+
   const rows = await dailyMark.aggregate([
-    { $match: { user: userObjectId } },
+    { $match: match },
     {
       $group: {
         _id: { subject: "$subject", status: "$status" },
@@ -51,6 +60,48 @@ async function getSubjectStatusCounts(userId) {
   return counts;
 }
 
+// Same numbers as calling getSubjectStatusCounts() twice (once for the whole
+// semester, once only up to `throughDate`), but with ONE pass over the user's
+// records instead of two. Used by the dashboard.
+//
+// Returns: { all: Map, current: Map }
+async function getSubjectStatusCountsSplit(userId, throughDate) {
+
+  const userObjectId =
+    userId instanceof mongoose.Types.ObjectId
+      ? userId
+      : new mongoose.Types.ObjectId(userId);
+
+  const rows = await dailyMark.aggregate([
+    { $match: { user: userObjectId } },
+    {
+      $group: {
+        _id: { subject: "$subject", status: "$status" },
+        count: { $sum: 1 },
+        upToDate: { $sum: { $cond: [{ $lte: ["$date", throughDate] }, 1, 0] } }
+      }
+    }
+  ]);
+
+  const all = new Map();
+  const current = new Map();
+
+  for (const row of rows) {
+    const subjectId = row._id.subject.toString();
+    const status = row._id.status;
+
+    if (!all.has(subjectId)) {
+      all.set(subjectId, { present: 0, absent: 0, holiday: 0, cancel: 0 });
+      current.set(subjectId, { present: 0, absent: 0, holiday: 0, cancel: 0 });
+    }
+
+    all.get(subjectId)[status] = row.count;
+    current.get(subjectId)[status] = row.upToDate;
+  }
+
+  return { all, current };
+}
+
 // Small helper so call sites don't need to worry about a subject
 // having zero attendance records yet (Map.get would return undefined).
 function getCountsFor(countsMap, subjectId) {
@@ -62,4 +113,4 @@ function getCountsFor(countsMap, subjectId) {
   };
 }
 
-module.exports = { getSubjectStatusCounts, getCountsFor };
+module.exports = { getSubjectStatusCounts, getSubjectStatusCountsSplit, getCountsFor };

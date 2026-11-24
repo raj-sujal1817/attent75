@@ -144,34 +144,63 @@
                 name: 'Chemistry' , attendance: 75, classesToday: null }, { name: 'Data Structures' , attendance: 81,
                 classesToday: '4:00 PM' }, ]; %>
                 <% sampleSubjects.forEach(function(sub) { %>
-                  <% const pct=sub.finalPercent; const barColor=pct>= 75 ? '#10b981' : pct >= 70 ? '#f59e0b' :
-                    '#ef4444';
-                    const badgeBg = pct >= 75 ? '#d1fae5' : pct >= 70 ? '#fef3c7' : '#fee2e2';
-                    const badgeTxt = pct >= 75 ? '#065f46' : pct >= 70 ? '#92400e' : '#991b1b';
-                    %>
-                    <div class="d-flex align-items-center gap-3 p-3 rounded-3"
+                  <% 
+                    const currentPct = Number(sub.currentPercent || 0);
+                    const semesterPct = Number(sub.finalPercent || 0);
+                    const currentColor = currentPct >= 75 ? '#10b981' : currentPct >= 70 ? '#f59e0b' : '#ef4444';
+                    const semesterColor = '#2563eb';
+                    const badgeBg = currentPct >= 75 ? '#d1fae5' : currentPct >= 70 ? '#fef3c7' : '#fee2e2';
+                    const badgeTxt = currentPct >= 75 ? '#065f46' : currentPct >= 70 ? '#92400e' : '#991b1b';
+                  %>
+                    <div class="p-3 rounded-3"
                       style="background:#f8faff;border:1.5px solid #e8f0fe;">
-                      <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
-                        style="width:44px;height:44px;background:linear-gradient(135deg,#2563eb,#60a5fa);color:#fff;font-size:18px;">
-                        <i class="bi bi-journal-text"></i>
-                      </div>
-                      <div class="flex-grow-1 min-w-0">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
+                      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <div class="d-flex align-items-center gap-2 min-w-0">
+                          <div class="rounded-3 d-flex align-items-center justify-content-center flex-shrink-0"
+                            style="width:40px;height:40px;background:linear-gradient(135deg,#2563eb,#60a5fa);color:#fff;font-size:17px;">
+                            <i class="bi bi-journal-text"></i>
+                          </div>
                           <span class="fw-semibold text-truncate" style="color:#1e293b;">
-                            <%= sub.subjectName %>
-                          </span>
-                          <span class="fw-bold ms-2 flex-shrink-0" style="color:<%= barColor %>">
-                            <%= pct %>%
+                            <%= sub.subjectName || sub.name %>
                           </span>
                         </div>
-                        <div class="progress" style="height:6px;">
-                          <div class="progress-bar" style="width:<%= pct %>%;background:<%= barColor %>;"></div>
+                        <span class="badge rounded-pill flex-shrink-0"
+                          style="background:<%= badgeBg %>;color:<%= badgeTxt %>;font-size:.72rem;">
+                          <%= currentPct >= 75 ? '✓ Safe' : currentPct >= 70 ? '⚠ Caution' : '✗ Critical' %>
+                        </span>
+                      </div>
+
+                      <div class="d-flex justify-content-between align-items-end mb-2 gap-3">
+                        <div>
+                          <div class="small text-muted">Current (till today)</div>
+                          <div class="fw-bold" style="font-size:1.2rem;color:<%= currentColor %>;">
+                            <%= currentPct.toFixed(1) %>%
+                          </div>
+                        </div>
+                        <div class="text-end">
+                          <div class="small text-muted">Overall (semester end)</div>
+                          <div class="fw-bold" style="font-size:1.2rem;color:<%= semesterColor %>;">
+                            <%= semesterPct.toFixed(1) %>%
+                          </div>
                         </div>
                       </div>
-                      <span class="badge rounded-pill flex-shrink-0"
-                        style="background:<%= badgeBg %>;color:<%= badgeTxt %>;font-size:.72rem;">
-                        <%= pct>= 75 ? '✓ Safe' : pct >= 70 ? '⚠ Caution' : '✗ Critical' %>
-                      </span>
+
+                      <!-- One shared 0–100 scale: current % is the filled bar;
+                           semester % is a separate marker on the same scale. -->
+                      <div class="position-relative" style="height:10px;background:#e5e7eb;border-radius:999px;">
+                        <div style="height:10px;width:<%= Math.min(100, Math.max(0, currentPct)) %>%;background:<%= currentColor %>;border-radius:999px;"></div>
+                        <div title="Overall semester: <%= semesterPct.toFixed(1) %>%"
+                          style="position:absolute;left:<%= Math.min(100, Math.max(0, semesterPct)) %>%;top:-4px;height:18px;width:3px;background:<%= semesterColor %>;border:1px solid #fff;border-radius:2px;transform:translateX(-50%);">
+                        </div>
+                      </div>
+                      <div class="d-flex justify-content-between mt-1">
+                        <span class="small text-muted">0%</span>
+                        <span class="small text-muted">100%</span>
+                      </div>
+                      <div class="d-flex flex-wrap gap-3 mt-2">
+                        <span class="small text-muted"><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:<%= currentColor %>;margin-right:4px;"></span>Current</span>
+                        <span class="small text-muted"><span style="display:inline-block;width:3px;height:12px;background:<%= semesterColor %>;margin-right:7px;vertical-align:-2px;"></span>Semester-end</span>
+                      </div>
                     </div>
                     <% }); %>
             </div>
